@@ -1,7 +1,7 @@
 
 import numpy as np
 from colorama import init as init_colorama
-from colorama import Back
+from colorama import Back, Fore, Style
 
 
 class Minefield():
@@ -181,6 +181,15 @@ class Minefield():
             return self.flags[r][c]
 
 
+    def check_win(self):
+        """
+        Examines the current state of the board and determines if the game has been won. The game has been won if all non-mine cells have been opened.
+        For that, all mine cells must not necessarily be flagged.
+        """
+
+        return np.all(np.logical_xor(self.opens, self.mines))
+
+
     def print_field(self, show_truth: bool=False):
         """
         Prints the field.
@@ -190,48 +199,48 @@ class Minefield():
         """
 
         init_colorama()
-        for r in range(self.width):
-            for c in range(self.height):
-                text = " "
-                color = Back.RESET
-
-                # Text selection
-                if self.flags[r][c]:
-                    text = "F"
+        for row in range(self.width+1):
+            for col in range(self.height+1):
+                if row == 0 and col == 0:
+                    print(Fore.LIGHTBLACK_EX + "+", end=" ")
+                elif row == 0:
+                    print(Fore.LIGHTBLACK_EX + str(col), end=" ")
+                elif col == 0:
+                    print(Fore.LIGHTBLACK_EX + str(row), end=" ")
                 else:
-                    if self.mines[r][c]:
-                        if self.opens[r][c]:
-                            text = "D"
-                        else:
-                            if show_truth:
-                                text = "M"
-                    else:
-                        if self.opens[r][c]:
-                            val = self.infos[r][c]
-                            if val != 0:
-                                text = str(val)
+                    r, c = row-1, col-1
 
-                # Background color selection
-                if not self.opens[r][c]:
-                    if show_truth:
-                        if self.flags[r][c] and not self.mines[r][c]:
-                            color = Back.RED
-                        else:
-                            color = Back.GREEN
-                    else:
-                        color = Back.WHITE
+                    text = " "
+                    color = Style.RESET_ALL
 
-                print(color + text, end=" ")
+                    # Text selection
+                    if self.flags[r][c]:
+                        text = "F"
+                    else:
+                        if self.mines[r][c]:
+                            if self.opens[r][c]:
+                                text = "D"
+                            else:
+                                if show_truth:
+                                    text = "M"
+                        else:
+                            if self.opens[r][c]:
+                                val = self.infos[r][c]
+                                if val != 0:
+                                    text = str(val)
+
+                    # Background color selection
+                    if not self.opens[r][c]:
+                        if show_truth:
+                            if self.flags[r][c] and not self.mines[r][c]:
+                                color = Back.RED
+                            else:
+                                color = Back.GREEN
+                        else:
+                            color = Back.WHITE
+
+                    print(color + text, end=" ")
             
-            print(Back.RESET)
-        
+            print(Style.RESET_ALL)
 
-if __name__ == "__main__":
-    field = Minefield(10, 10)
-    field.set_num_mines(flat=False, val=2, mean=6, var=2)
-    field.sample_mines()
-    print(field.num_mines)
-    field.print_field(True)
-    print("")
-    print(field.open_cell((2, 2)))
-    field.print_field(True)
+

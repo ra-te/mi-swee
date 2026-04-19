@@ -4,6 +4,10 @@ from colorama import init as init_colorama
 from colorama import Back, Fore, Style
 
 
+OFFSETS = [(-1, -1), (-1, 0), (-1, 1), 
+           ( 0, -1),          ( 0, 1), 
+           ( 1, -1), ( 1, 0), ( 1, 1)]
+
 class Minefield():
     """
     A class representing a minefield, with a given width and height.
@@ -20,10 +24,13 @@ class Minefield():
 
         self.width = width
         self.height = height
-        self.flags = np.zeros(shape=(width, height), dtype=np.bool)
-        self.opens = np.zeros(shape=(width, height), dtype=np.bool)
-        self.mines = np.zeros(shape=(width, height), dtype=np.bool)
-        self.infos = np.zeros(shape=(width, height), dtype=np.uint8)
+        self.flags = np.zeros(shape=(height, width), dtype=np.bool)
+        self.opens = np.zeros(shape=(height, width), dtype=np.bool)
+        self.open_info = np.zeros(shape=(height, width), dtype=np.uint8)
+
+        # Mines and Infos should not be directly accessed by players or solvers
+        self.mines = np.zeros(shape=(height, width), dtype=np.bool)
+        self.infos = np.zeros(shape=(height, width), dtype=np.uint8)
 
 
     def set_num_mines(self, flat: bool, val: int=None, mean: float=None, var: float=None):
@@ -62,14 +69,10 @@ class Minefield():
         if r < 0 or self.height <= r or c < 0 or self.width <= c:
             raise ValueError(f"Invalid position. Received {pos}")
         
-        offsets = [(-1, -1), (-1, 0), (-1, 1), 
-                   ( 0, -1),          ( 0, 1), 
-                   ( 1, -1), ( 1, 0), ( 1, 1)]
-        
         indices = []
-        for dr, dc in offsets:
+        for dr, dc in OFFSETS:
             nr, nc = r + dr, c + dc
-            if 0 <= nr < self.width and 0 <= nc < self.height:
+            if 0 <= nr < self.height and 0 <= nc < self.width:
                 indices.append((nr, nc))
 
         return indices
@@ -96,8 +99,8 @@ class Minefield():
         Calculates board information, i.e. how many mines are adjacent to each cell.
         """
 
-        for r in range(self.width):
-            for c in range(self.height):
+        for r in range(self.height):
+            for c in range(self.width):
                 self.infos[r][c] = self.check_mines(self.get_neighbors((r, c))).count(True)
 
     
@@ -109,7 +112,7 @@ class Minefield():
         grid = np.zeros(shape=(self.width * self.height))
         grid[:self.num_mines] = 1
         np.random.shuffle(grid)
-        self.mines = grid.reshape((self.width, self.height)).astype(dtype=np.bool)
+        self.mines = grid.reshape((self.height, self.width)).astype(dtype=np.bool)
         self.calc_infos()
 
 
@@ -117,6 +120,7 @@ class Minefield():
         """
         Opens the cell at the given position. Returns None if cell is already open, True if cell was safe and False if not.
         If cell was safe and has 0 neighboring mines, automatically opens all cells in proximity that also have 0 neighboring mines.
+        Updates the information that is visible to players and solvers.
 
         Args:
             pos (tuple[int, int]): The position of the cell to open.
@@ -126,9 +130,11 @@ class Minefield():
         if self.opens[r][c]:
             return None
 
-        # Reveal the clicked cell
+        # Reveal the cell
         self.opens[r][c] = True
         self.flags[r][c] = False
+
+        self.update_visible_info()
 
         # If mine at that position, return False
         if self.mines[r][c]:
@@ -162,7 +168,17 @@ class Minefield():
                 if self.infos[n_r][n_c] == 0:
                     candidates.append(neighbor_pos)
 
+        self.update_visible_info()
         return True
+    
+    def update_visible_info(self):
+        """
+        Updates the visible information to players and solvers. A value of 9 represents a closed cell.
+        """
+
+        visible_info = self.opens * self.infos
+        closed = ~self.opens * 9
+        self.open_info = visible_info + closed
             
     
     def set_flag(self, pos: tuple[int, int]) -> bool:
@@ -199,14 +215,14 @@ class Minefield():
         """
 
         init_colorama()
-        for row in range(self.width+1):
-            for col in range(self.height+1):
+        for row in range(self.height+1):
+            for col in range(self.width+1):
                 if row == 0 and col == 0:
-                    print(Fore.LIGHTBLACK_EX + "+", end=" ")
+                    print(Fore.LIGHTBLACK_EX + " +", end=" ")
                 elif row == 0:
-                    print(Fore.LIGHTBLACK_EX + str(col), end=" ")
+                    print(Fore.LIGHTBLACK_EX + f"{col:02d}", end=" ")
                 elif col == 0:
-                    print(Fore.LIGHTBLACK_EX + str(row), end=" ")
+                    print(Fore.LIGHTBLACK_EX + f"{row:02d}", end=" ")
                 else:
                     r, c = row-1, col-1
 
@@ -239,7 +255,7 @@ class Minefield():
                         else:
                             color = Back.WHITE
 
-                    print(color + text, end=" ")
+                    print(color + " " + text, end=" ")
             
             print(Style.RESET_ALL)
 
